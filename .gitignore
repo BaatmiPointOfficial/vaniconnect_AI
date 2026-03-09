@@ -1,0 +1,14 @@
+# Security: Never upload passwords!
+.env
+
+# Environments: Don't upload the massive Python libraries
+venv/
+env/
+
+# Cache: Ignore useless Python cache files
+__pycache__/
+*.pyc
+
+# OS Files: Ignore annoying hidden system files
+.DS_Store
+Thumbs.db
