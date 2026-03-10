@@ -1,12 +1,12 @@
-# 1. Start with a lightweight Python server
-FROM python:3.10-slim
+# 1. Start with a reliable, specific Python server version
+FROM python:3.10-slim-bullseye
 
 # 2. Install the heavy system tools for OpenCV and Video Processing
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     libsm6 \
     libxext6 \
-    libgl1-mesa-glx \
+    libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
 # 3. Set up our working folder
