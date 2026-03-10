@@ -17,7 +17,8 @@ app = FastAPI(title="VaniConnect AI Engine")
 # Open the security gates so Vercel can talk to us!
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows any website to connect (we can lock this down to just your Vercel URL later!)
+    allow_origins=["http://localhost:3000",
+        "https://vaniconnect-studio.vercel.app"],  # Allows any website to connect (we can lock this down to just your Vercel URL later!)
     allow_credentials=True,
     allow_methods=["*"],  # Allows POST, GET, etc.
     allow_headers=["*"],
