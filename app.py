@@ -15,14 +15,13 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 
 # 🤖 YOUR AI TOOLS
-import yt_down  
+
 import main_photo 
 import main_video
 import bg_remove
 import add_logo
 import enhance_photo
 import enhance_video
-import trim_video
 import auto_detect 
 import db
 
@@ -38,6 +37,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "https://vaniconnect-studio.vercel.app",
+        
     ],
     allow_credentials=True,
     allow_methods=["*"], 
@@ -234,60 +234,6 @@ async def process_photo(
         
     return {"message": "Success!", "file_name": f"clean_{file.filename}"} 
 
-@app.post("/api/download")
-@limiter.limit("5/minute")
-async def process_universal_download(
-    request: Request,
-    url: str = Form(...),
-    quality: str = Form("720p"), # 🌟 Catch the user's choice!
-    user_id: str = Form(...) # 🌟 1. Added the Catching Mitt!
-):
-    # ❌ 2. Deleted the hardcoded admin_user_1!
-    
-    user_data = db.get_or_create_user(user_id)
-
-    # 2. Safety Check: If Firebase returns NOTHING, stop gracefully!
-    if not user_data:
-        print(f"🚨 Blocked: User {user_id} not found in Firebase!")
-        raise HTTPException(status_code=401, detail="User profile not found. Please log in securely.")
-
-    # 3. Use the NEW Firebase vocabulary
-    is_pro = user_data.get("isProUser", False)
-    credits_left = user_data.get("free_credits", 0)
-
-    # 4. The Paywall Logic
-    if not is_pro and credits_left <= 0:
-        print(f"🚨 Blocked: User {user_id} is out of credits!")
-        raise HTTPException(status_code=402, detail="PaywallTrigger: Daily limit reached. Upgrade to Pro.")
-    
-    print(f"🔗 Received URL: {url} | Requested Format: {quality}")
-    
-    # 🌟 Pass the quality dynamically to your engine!
-    safe_filename, title, thumbnail = yt_down.download_youtube_video(video_url=url, quality=quality)
-    
-    if not safe_filename:
-        return {"error": "Failed to extract video. It might be private or age-restricted."}
-        
-    file_path = os.path.join("downloads", safe_filename)
-    
-    try:
-        with open(file_path, 'rb') as video_file:
-            s3.put_object(Bucket=bucket_name, Key=f'downloads/{safe_filename}', Body=video_file)
-    except Exception as e:
-        print(f"Cloudflare skipped: {e}")
-
-    # 💰 DEDUCT CREDIT (Correctly aligned with the main function!)
-    if not is_pro:
-        db.deduct_credit(user_id)
-        print(f"💸 Credit deducted! Remaining: {credits_left - 1}")
-        
-    return {
-        "message": "Success!", 
-        "file_name": safe_filename,
-        "title": title,
-        "thumbnail": thumbnail,
-        "is_audio": quality == "audio" # Let React know if it's an MP3!
-    }
 
 @app.post("/api/remove-video-watermark")
 @limiter.limit("5/minute")
@@ -785,62 +731,6 @@ async def process_clipcut(
         
     return {"message": "Success!", "file_name": f"final_clipcut_{file.filename}"}
 
-@app.post("/api/batch-split")
-@limiter.limit("5/minute")
-async def process_batch_split(
-    request: Request,
-    video_file: UploadFile,
-    clip_duration: int = Form(60) # Default to 60-second clips
-):
-   # 1. Grab the REAL user_id from the frontend (Replace hardcoded string later!)
-    user_id = "admin_user_1" # ⚠️ REMINDER: Connect this to your frontend soon!
-    
-    user_data = db.get_or_create_user(user_id)
-
-    # 2. Safety Check: If Firebase returns NOTHING, stop gracefully!
-    if not user_data:
-        print(f"🚨 Blocked: User {user_id} not found in Firebase!")
-        raise HTTPException(status_code=401, detail="User profile not found. Please log in securely.")
-
-    # 3. Use the NEW Firebase vocabulary
-    is_pro = user_data.get("isProUser", False)
-    credits_left = user_data.get("free_credits", 0)
-
-    # 4. The Paywall Logic
-    if not is_pro and credits_left <= 0:
-        print(f"🚨 Blocked: User {user_id} is out of credits!")
-        # 402 Payment Required is the perfect status code here!
-        raise HTTPException(status_code=402, detail="PaywallTrigger: Daily limit reached. Upgrade to Pro.")
-    
-    input_video = f"downloads/temp_batch_{video_file.filename}"
-    
-    # Save the giant video
-    with open(input_video, "wb") as buffer:
-        buffer.write(await video_file.read())
-
-    print(f"🔪 Starting Batch Split on {video_file.filename} every {clip_duration} seconds...")
-    
-    # Call our new Zipping Engine
-    success, zip_path = trim_video.split_video_into_parts(
-        input_video, 
-        clip_duration, 
-        "downloads"
-    )
-
-    if not success:
-        return {"error": "Failed to batch split video."}
-
-    # Clean up the massive original input video to save space
-    try:
-        os.remove(input_video)
-    except Exception:
-        pass
-
-    if not is_pro:
-        db.deduct_credit(user_id)
-        print(f"💸 Credit deducted! Remaining: {credits_left - 1}")
-        
-    return {"message": "Success!", "file_name": os.path.basename(zip_path)}
 
 @app.get("/test-db")
 def test_database():
