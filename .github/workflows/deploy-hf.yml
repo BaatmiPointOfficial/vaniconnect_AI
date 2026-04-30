@@ -13,10 +13,24 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0
           lfs: true 
           
       - name: Push to Hugging Face
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: git push --force https://vaniconnect:$HF_TOKEN@huggingface.co/spaces/vaniconnect/vaniconnect-api HEAD:main
+        run: |
+          # 1. Delete the old history inside the temporary computer
+          rm -rf .git
+          
+          # 2. Start a fresh, clean shipping box
+          git init
+          git lfs install
+          git config user.email "bot@vaniconnect.com"
+          git config user.name "VaniConnect Pipeline Bot"
+          
+          # 3. Pack up the current files (which are now safely configured for LFS)
+          git add .
+          git commit -m "Auto-deployed fresh snapshot from GitHub"
+          
+          # 4. Force overwrite Hugging Face with this clean box
+          git push --force https://vaniconnect:$HF_TOKEN@huggingface.co/spaces/vaniconnect/vaniconnect-api master:main
