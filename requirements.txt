@@ -57,3 +57,4 @@ uvicorn
 slowapi
 razorpay
 firebase-admin
+moviepy==1.0.3
