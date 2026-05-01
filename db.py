@@ -1,9 +1,12 @@
 import firebase_admin
+import os
+import json
 from firebase_admin import credentials, firestore
 
 # 1. Connect to the Firebase Vault using your Master Key
 # (Ensure your 'firebase_key.json' file is inside the same folder as this file!)
-cred = credentials.Certificate("firebase_key.json")
+firebase_secret = os.environ.get("FIREBASE_KEY")
+cred = credentials.Certificate(json.loads(firebase_secret))
 
 # Prevent the server from crashing if it reloads and tries to initialize twice
 if not firebase_admin._apps:
