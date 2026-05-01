@@ -20,7 +20,6 @@ jsonschema
 jsonschema-specifications
 lazy-loader
 llvmlite
-moviepy==1.0.3
 mpmath
 networkx
 numba
@@ -55,5 +54,5 @@ typing-inspection
 typing_extensions
 urllib3
 uvicorn
-yt-dlp
 slowapi
+razorpay
