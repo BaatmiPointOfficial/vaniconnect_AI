@@ -56,3 +56,4 @@ urllib3
 uvicorn
 slowapi
 razorpay
+firebase-admin
