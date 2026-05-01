@@ -1,4 +1,5 @@
 import os
+import json
 import boto3
 import shutil
 import razorpay
@@ -83,7 +84,8 @@ class VerifyRequest(BaseModel):
     user_id: str
 
 # 8️⃣ FIREBASE ADMIN SETUP
-cred = credentials.Certificate("firebase_key.json")
+firebase_secret = os.environ.get("FIREBASE_KEY")
+cred = credentials.Certificate(json.loads(firebase_secret))
 
 # 🔥 FIX: Check if Firebase is already initialized to prevent reload crashes
 if not firebase_admin._apps:
