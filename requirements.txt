@@ -25,7 +25,7 @@ networkx
 numba
 numpy
 onnxruntime
-opencv-python
+opencv-contrib-python-headless
 packaging
 pillow
 platformdirs
