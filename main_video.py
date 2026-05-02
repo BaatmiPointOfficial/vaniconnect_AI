@@ -13,8 +13,9 @@ def remove_watermark_pro(input_path, output_path, x, y, w, h):
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     
-    # Use a temporary file for the video frames
-    temp_output = "temp_pro_process.mp4"
+    # Extract the original filename and make a unique temp name
+    base_name = os.path.basename(input_path)
+    temp_output = f"temp_pro_{base_name}"
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(temp_output, fourcc, fps, (width, height))
 
