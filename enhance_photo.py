@@ -17,25 +17,20 @@ def enhance_photo_web(input_path, output_path, factor=4, face_restoration=True, 
             scale = max_dim / max(height, width)
             img = cv2.resize(img, (int(width * scale), int(height * scale)), interpolation=cv2.INTER_LANCZOS4)
 
-        # 🌟 2. THE FREE SHADOW REMOVER & HDR ENHANCER
+        # 🌟 2. SAFE COLOR CORRECTION
         if color_correction:
-            print("☀️ Running Shadow Recovery & HDR Enhancement...")
-            
-            # Step A: Recover dark shadows using LAB lightness curve
+            # We gently lift shadows without crushing the blacks or muddying the image
             lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
             l, a, b = cv2.split(lab)
             
-            # CLAHE specifically targets and boosts shadow contrast
-            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+            # Lowered the clipLimit to 1.2. This prevents the "dirty" look on selfies!
+            clahe = cv2.createCLAHE(clipLimit=1.2, tileGridSize=(8,8))
             cl = clahe.apply(l)
             
-            # Merge back into a color image
             limg = cv2.merge((cl,a,b))
             img = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
             
-            # Step B: OpenCV's hidden "Magic HDR" filter
-            # This is the secret to pulling incredible texture out of the shadows
-            img = cv2.detailEnhance(img, sigma_s=10, sigma_r=0.15)
+            # (Notice I completely removed the cv2.detailEnhance line that was ruining it!)
 
         # 3. FAST AI UPSCALING (FSRCNN)
         print("⚡ Booting up FSRCNN Neural Network...")
@@ -46,22 +41,16 @@ def enhance_photo_web(input_path, output_path, factor=4, face_restoration=True, 
         
         result = sr.upsample(img)
 
-        # ✨ 4. PRO-LEVEL SHARPENING (Fixing the crunchy look)
+        # ✨ 4. CLEAN SHARPENING
         if face_restoration:
-            print("✨ Applying final crisp polish...")
-            
-            # Create a professional sharpening matrix
-            kernel = np.array([[0, -1, 0], 
-                               [-1, 5,-1], 
-                               [0, -1, 0]])
-            sharpened = cv2.filter2D(result, -1, kernel)
-            
-            # Blend the sharpened image with the smooth upscaled image 
-            # (70% smooth, 30% sharp) to make faces look completely natural
-            result = cv2.addWeighted(result, 0.7, sharpened, 0.3, 0)
+            print("✨ Applying clean unsharp mask...")
+            # The aggressive matrix made noisy photos look terrible. 
+            # This Gaussian approach is much safer for skin and faces.
+            gaussian_blur = cv2.GaussianBlur(result, (5, 5), 0)
+            result = cv2.addWeighted(result, 1.5, gaussian_blur, -0.5, 0)
 
         cv2.imwrite(output_path, result)
-        print(f"✅ SUCCESS: Photo enhanced with Shadow Recovery!")
+        print(f"✅ SUCCESS: Photo enhanced cleanly!")
         return True
 
     except Exception as e:
