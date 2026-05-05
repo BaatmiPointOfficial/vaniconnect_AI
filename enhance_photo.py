@@ -11,45 +11,57 @@ def enhance_photo_web(input_path, output_path, factor=4, face_restoration=True, 
             return False
 
         # 1. THE RELAXED MEMORY SHIELD
-        # We increased this to 1600 to preserve the original quality!
         max_dim = 1600 
         height, width = img.shape[:2]
         if max(height, width) > max_dim:
             scale = max_dim / max(height, width)
             img = cv2.resize(img, (int(width * scale), int(height * scale)), interpolation=cv2.INTER_LANCZOS4)
-            print(f"📉 Shrunk to {img.shape[1]}x{img.shape[0]} to protect RAM.")
 
-        # 2. COLOR CORRECTION (Softened)
+        # 🌟 2. THE FREE SHADOW REMOVER & HDR ENHANCER
         if color_correction:
-            print("🎨 Applying Auto Color Correction...")
+            print("☀️ Running Shadow Recovery & HDR Enhancement...")
+            
+            # Step A: Recover dark shadows using LAB lightness curve
             lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
             l, a, b = cv2.split(lab)
-            # Reduced clipLimit so it doesn't look over-saturated/burnt
-            clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(8,8))
+            
+            # CLAHE specifically targets and boosts shadow contrast
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
             cl = clahe.apply(l)
+            
+            # Merge back into a color image
             limg = cv2.merge((cl,a,b))
             img = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
+            
+            # Step B: OpenCV's hidden "Magic HDR" filter
+            # This is the secret to pulling incredible texture out of the shadows
+            img = cv2.detailEnhance(img, sigma_s=10, sigma_r=0.15)
 
         # 3. FAST AI UPSCALING (FSRCNN)
-        print("⚡ Booting up FSRCNN Neural Network (High Speed)...")
+        print("⚡ Booting up FSRCNN Neural Network...")
         sr = dnn_superres.DnnSuperResImpl_create()
-        
-        # Make sure you uploaded FSRCNN_x4.pb to Hugging Face!
         model_path = "FSRCNN_x4.pb" 
         sr.readModel(model_path)
         sr.setModel("fsrcnn", 4) 
         
         result = sr.upsample(img)
 
-        # 4. SMART SHARPENING (Fixing the crunchy look)
+        # ✨ 4. PRO-LEVEL SHARPENING (Fixing the crunchy look)
         if face_restoration:
-            print("✨ Applying soft detail enhancement...")
-            # Softened the blur and weights so it doesn't look artificial
-            gaussian_blur = cv2.GaussianBlur(result, (5, 5), 0)
-            result = cv2.addWeighted(result, 1.2, gaussian_blur, -0.2, 0)
+            print("✨ Applying final crisp polish...")
+            
+            # Create a professional sharpening matrix
+            kernel = np.array([[0, -1, 0], 
+                               [-1, 5,-1], 
+                               [0, -1, 0]])
+            sharpened = cv2.filter2D(result, -1, kernel)
+            
+            # Blend the sharpened image with the smooth upscaled image 
+            # (70% smooth, 30% sharp) to make faces look completely natural
+            result = cv2.addWeighted(result, 0.7, sharpened, 0.3, 0)
 
         cv2.imwrite(output_path, result)
-        print(f"✅ SUCCESS: AI Photo enhanced!")
+        print(f"✅ SUCCESS: Photo enhanced with Shadow Recovery!")
         return True
 
     except Exception as e:
