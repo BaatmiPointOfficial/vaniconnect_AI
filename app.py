@@ -53,16 +53,14 @@ limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# 5️⃣ SET UP DOWNLOADS FOLDER
-class CORStaticFiles(StaticFiles):
-    async def item_response(self, *args, **kwargs) -> Response:
-        response = await super().item_response(*args, **kwargs)
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-        return response
 
-# Replace your old mount line with this one:
+# 5️⃣ SET UP DOWNLOADS FOLDER
+import os
+
+# 🚀 THIS IS THE MISSING MAGIC LINE. Add it right here:
+os.makedirs("downloads", exist_ok=True)
+
+# This is your current line 66:
 app.mount("/downloads", CORStaticFiles(directory="downloads"), name="downloads")
 
 # 6️⃣ CONNECT TO CLOUDFLARE R2
