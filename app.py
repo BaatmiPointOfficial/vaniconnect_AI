@@ -55,12 +55,19 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 # 5️⃣ SET UP DOWNLOADS FOLDER
-import os
+# 1. Define the custom class FIRST so Python knows what it is
+class CORStaticFiles(StaticFiles):
+    async def item_response(self, *args, **kwargs) -> Response:
+        response = await super().item_response(*args, **kwargs)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
 
-# 🚀 THIS IS THE MISSING MAGIC LINE. Add it right here:
+# 2. Make the directory physical structure
 os.makedirs("downloads", exist_ok=True)
 
-# This is your current line 66:
+# 3. Mount the folder using your class LAST
 app.mount("/downloads", CORStaticFiles(directory="downloads"), name="downloads")
 
 # 6️⃣ CONNECT TO CLOUDFLARE R2
