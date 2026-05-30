@@ -3,7 +3,7 @@ import json
 import boto3
 import shutil
 import razorpay
-from fastapi import FastAPI, Request, BackgroundTasks, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, Request, BackgroundTasks, UploadFile, File, Form, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -12,6 +12,7 @@ from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from typing import Optional
+from fastapi import Response
 import firebase_admin
 from firebase_admin import credentials, firestore
 
@@ -53,8 +54,16 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # 5️⃣ SET UP DOWNLOADS FOLDER
-os.makedirs("downloads", exist_ok=True) 
-app.mount("/downloads", StaticFiles(directory="downloads"), name="downloads")
+class CORStaticFiles(StaticFiles):
+    async def item_response(self, *args, **kwargs) -> Response:
+        response = await super().item_response(*args, **kwargs)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
+
+# Replace your old mount line with this one:
+app.mount("/downloads", CORStaticFiles(directory="downloads"), name="downloads")
 
 # 6️⃣ CONNECT TO CLOUDFLARE R2
 r2_access_key = os.getenv('R2_ACCESS_KEY_ID')
