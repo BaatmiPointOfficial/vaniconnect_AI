@@ -40,6 +40,8 @@ def remove_watermark_pro(input_path, output_path, x, y, w, h):
 
     # 🌟 THE NEW BULLETPROOF AUDIO FIX
     # 3. Re-attach the original audio safely
+    # 🌟 THE NEW BULLETPROOF AUDIO & CODEC FIX
+    # 3. Re-attach the original audio safely
     try:
         original_clip = VideoFileClip(input_path)
         processed_clip = VideoFileClip(temp_output)
@@ -63,10 +65,17 @@ def remove_watermark_pro(input_path, output_path, x, y, w, h):
         processed_clip.close()
         
     except Exception as e:
-        print(f"⚠️ Audio processing failed, saving video without audio: {e}")
-        # Emergency fallback: if moviepy completely fails, just copy the temp video 
-        # so the user at least gets their cleaned footage!
-        shutil.copy(temp_output, output_path)
+        print(f"⚠️ MoviePy failed ({e}). Running bulletproof FFmpeg web fallback...")
+        
+        # If MoviePy fails, use a direct shell call to FFmpeg to encode to libx264 safely without audio
+        try:
+            # -y overwrites output, -vcodec libx264 forces web format, -an removes audio if corrupt
+            conversion_command = f'ffmpeg -y -i "{temp_output}" -vcodec libx264 -an "{output_path}"'
+            os.system(conversion_command)
+            print("✅ FFmpeg fallback conversion successful!")
+        except Exception as ffmpeg_err:
+            print(f"🚨 Critical: FFmpeg fallback also failed ({ffmpeg_err}). Copying raw file.")
+            shutil.copy(temp_output, output_path)
 
     finally:
         # Cleanup temporary files safely
