@@ -69,6 +69,7 @@ def remove_watermark_pro(input_path, output_path, x, y, w, h):
             audio_codec="aac", 
             preset="ultrafast",
             threads=8,
+            ffmpeg_params=["-movflags", "+faststart"], # 🌟 MOVES INDEX TO THE FRONT!
             logger=None
         )
         
@@ -81,10 +82,12 @@ def remove_watermark_pro(input_path, output_path, x, y, w, h):
         try:
             # 🌟 FIX 3: STRICT SUBPROCESS
             # This uses standard terminal commands to force formatting and catches real errors
+            # 🌟 ADDED FASTSTART HERE TOO
             conversion_command = [
                 "ffmpeg", "-y", "-i", temp_output, 
                 "-vcodec", "libx264", 
-                "-pix_fmt", "yuv420p", 
+                "-pix_fmt", "yuv420p",
+                "-movflags", "+faststart", 
                 "-an", output_path
             ]
             subprocess.run(conversion_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
