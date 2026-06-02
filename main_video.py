@@ -47,6 +47,8 @@ def remove_watermark_pro(input_path, output_path, x, y, w, h):
     """
     High-quality Video Watermark Removal with dynamic key mapping and thread optimization.
     """
+    global ort_session  # 🌟 FIX: Explicitly reference the global AI session variable
+    
     base_name = os.path.basename(input_path)
     normalized_input = f"normalized_{base_name}.mp4"
     
