@@ -60,7 +60,11 @@ def remove_watermark_pro(input_path, output_path, x, y, w, h):
         mask = np.zeros(frame.shape[:2], dtype=np.uint8)
         cv2.rectangle(mask, (x, y), (int(x + w), int(y + h)), 255, -1)
         
-        frame = cv2.inpaint(frame, mask, 3, cv2.INPAINT_NS)
+        # CHANGE THIS OLD LINE:
+# frame = cv2.inpaint(frame, mask, 3, cv2.INPAINT_NS)
+
+# TO THIS NEW LINE:
+        frame = cv2.inpaint(frame, mask, 1, cv2.INPAINT_TELEA)
         out.write(frame)
         frames_processed += 1
 
