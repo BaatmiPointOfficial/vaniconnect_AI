@@ -252,7 +252,6 @@ async def process_photo(
         
     return {"message": "Success!", "file_name": f"clean_{file.filename}"} 
 
-
 @app.post("/api/remove-video-watermark")
 @limiter.limit("5/minute")
 async def process_video(
@@ -263,58 +262,66 @@ async def process_video(
     w: int = Form(0), 
     h: int = Form(0),
     mode: str = Form("manual"), 
-    user_id: str = Form(...) # 🌟 1. Added the Catching Mitt!
+    user_id: str = Form(...) 
 ):
-    # ❌ 2. Deleted the hardcoded admin_user_1!
-    
     user_data = db.get_or_create_user(user_id)
 
-    # 2. Safety Check: If Firebase returns NOTHING, stop gracefully!
     if not user_data:
         print(f"🚨 Blocked: User {user_id} not found in Firebase!")
         raise HTTPException(status_code=401, detail="User profile not found. Please log in securely.")
 
-    # 3. Use the NEW Firebase vocabulary
     is_pro = user_data.get("isProUser", False)
     credits_left = user_data.get("free_credits", 0)
 
-    # 4. The Paywall Logic
     if not is_pro and credits_left <= 0:
         print(f"🚨 Blocked: User {user_id} is out of credits!")
         raise HTTPException(status_code=402, detail="PaywallTrigger: Daily limit reached. Upgrade to Pro.")
 
-    # 1. Save directly into the safe 'downloads' folder
     input_filename = f"downloads/temp_vid_{file.filename}"
     output_filename = f"downloads/clean_vid_{file.filename}"
     
     with open(input_filename, "wb") as buffer:
         buffer.write(await file.read())
 
-    print(f"🎬 Processing Video Watermark for {input_filename} in {mode.upper()} mode...")
+    print(f"🎬 Incoming Frontend Request Mode: {mode.upper()}")
     
-    # 🌟 THE AI AUTO LOGIC!
+    # 🌟 BRIDGE THE MODE GAP: Default manual selections to lightning-fast classical mode
+    backend_execution_mode = "fast" 
+    
     if mode == "auto":
         print("🤖 Handing video to EasyOCR to find the watermark...")
         box = auto_detect.find_text_watermark(input_filename)
         
         if box:
             x, y, w, h = box['x'], box['y'], box['w'], box['h']
-            print(f"✅ AI found the logo at: x={x}, y={y}, w={w}, h={h}")
+            print(f"🎯 AI Auto-Detected Text Coordinates -> x: {x}, y: {y}, w: {w}, h: {h}")
+            
+            # 🛡️ ANTI-HEADLINE SHIELD: If the detected box width is huge, it's a news banner, not a watermark logo!
+            if w > 450:
+                print("⚠️ AI grabbed a wide headline banner text instead of a logo. Rejecting false positive.")
+                try: os.remove(input_filename)
+                except: pass
+                return {"error": "AI Auto targeted the headline banner text. Please use Manual Select to circle the logo directly!"}
+                
+            backend_execution_mode = "ai" # Successfully handoff processing track to premium LaMa AI
+            print("🚀 Switched backend processing matrix to premium LaMa AI core.")
         else:
-            # If the AI fails to find text, tell the frontend to show an error
-            return {"error": "AI Auto could not find any clear text in the video. Please use Manual Select."}
+            print("❌ EasyOCR text array parsing returned empty values.")
+            try: os.remove(input_filename)
+            except: pass
+            return {"error": "AI Auto could not find any explicit text logos here. Please use Manual Select."}
 
-    # 2. Run your professional Navier-Stokes logic
+    # 🌟 FIX: Explicitly passing the backend_execution_mode parameter here!
     success = main_video.remove_watermark_pro(
         input_path=input_filename, 
         output_path=output_filename, 
-        x=x, y=y, w=w, h=h
+        x=x, y=y, w=w, h=h,
+        mode=backend_execution_mode
     )
 
     if not success:
         return {"error": "Video processing failed"}
 
-    # 3. Upload to Cloudflare (Wrap in try/except)
     print("☁️ Uploading clean video to Cloudflare...")
     try:
         with open(output_filename, 'rb') as clean_file:
@@ -326,19 +333,16 @@ async def process_video(
     except Exception as e:
         print(f"Cloudflare upload skipped (Local Mode): {e}")
         
-    # 4. Clean up input file
     try:
         os.remove(input_filename)
     except Exception as e:
         print(f"Cleanup issue: {e}")
 
-    # 🌟 3. FIXED INDENTATION: This is now safely outside the try/except block!
     if not is_pro:
         db.deduct_credit(user_id)
         print(f"💸 Credit deducted! Remaining: {credits_left - 1}")
         
     return {"message": "Success!", "file_name": f"clean_vid_{file.filename}"}
-
 @app.post("/api/remove-bg")
 @limiter.limit("5/minute")
 async def process_background(
