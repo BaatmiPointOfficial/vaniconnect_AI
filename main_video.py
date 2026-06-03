@@ -44,9 +44,7 @@ except Exception as e:
 
 def remove_watermark_pro(input_path, output_path, x, y, w, h, mode="fast"):
     """
-    Video Watermark Removal with dynamic mode selection:
-    - mode="ai": Premium LaMa AI pixel reconstruction (High-quality, slower)
-    - mode="fast": Classical OpenCV mathematical filling (Instant 2-5 sec processing)
+    Video Watermark Removal with adaptive dominant-color patching for seamless graphics removal.
     """
     global ort_session
     
@@ -77,7 +75,7 @@ def remove_watermark_pro(input_path, output_path, x, y, w, h, mode="fast"):
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(temp_output, fourcc, fps, (width, height))
 
-    # Calculate crop coordinates for AI boundaries
+    # Calculate bounded crop area coordinates for AI mode
     padding = 16
     x1 = max(0, int(x) - padding)
     y1 = max(0, int(y) - padding)
@@ -113,7 +111,6 @@ def remove_watermark_pro(input_path, output_path, x, y, w, h, mode="fast"):
         mask = np.zeros(frame.shape[:2], dtype=np.uint8)
         cv2.rectangle(mask, (int(x), int(y)), (int(x + w), int(y + h)), 255, -1)
         
-        # 🌟 STRATEGY CORE: Choose execution path based on requested mode
         if mode == "ai" and ort_session is not None and (y2 > y1 and x2 > x1):
             try:
                 crop_frame = frame[y1:y2, x1:x2]
@@ -142,8 +139,38 @@ def remove_watermark_pro(input_path, output_path, x, y, w, h, mode="fast"):
             except Exception:
                 frame = cv2.inpaint(frame, mask, 1, cv2.INPAINT_TELEA)
         else:
-            # ⚡ INSTANT FALLBACK: Run the lightning-fast classical algorithm
-            frame = cv2.inpaint(frame, mask, 1, cv2.INPAINT_TELEA)
+            # ⚡ HIGH-FIDELITY FAST MODE: Content-Aware Dominant Color Patching
+            ymin, ymax = max(0, int(y)), min(height, int(y + h))
+            xmin, xmax = max(0, int(x)), min(width, int(x + w))
+            
+            if (ymax > ymin) and (xmax > xmin):
+                # Sample 4 pixels wide around the boundary of the selection box
+                sample_top = frame[max(0, ymin-4):ymin, xmin:xmax]
+                sample_bottom = frame[ymax:min(height, ymax+4), xmin:xmax]
+                sample_left = frame[ymin:ymax, max(0, xmin-4):xmin]
+                sample_right = frame[ymin:ymax, xmax:min(width, xmax+4)]
+                
+                samples = []
+                for s in [sample_top, sample_bottom, sample_left, sample_right]:
+                    if s.size > 0:
+                        samples.append(s.reshape(-1, 3))
+                
+                if samples:
+                    # Use median value to completely disregard text letter colors and extract pure background tint
+                    all_pixels = np.vstack(samples)
+                    bg_color = np.median(all_pixels, axis=0).astype(int)
+                    
+                    # Paint a clean, solid patch over the watermark zone matching the background perfectly
+                    cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (int(bg_color[0]), int(bg_color[1]), int(bg_color[2])), -1)
+                    
+                    # Smooth the local border bounds slightly so it blends organically
+                    if xmin > 2 and xmax < width - 2 and ymin > 2 and ymax < height - 2:
+                        roi = frame[ymin-2:ymax+2, xmin-2:xmax+2]
+                        frame[ymin-2:ymax+2, xmin-2:xmax+2] = cv2.GaussianBlur(roi, (3, 3), 0)
+                else:
+                    frame = cv2.inpaint(frame, mask, 1, cv2.INPAINT_TELEA)
+            else:
+                frame = cv2.inpaint(frame, mask, 1, cv2.INPAINT_TELEA)
 
         out.write(frame)
         frames_processed += 1
