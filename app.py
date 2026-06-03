@@ -251,6 +251,7 @@ async def process_photo(
         print(f"💸 Credit deducted! Remaining: {credits_left - 1}")
         
     return {"message": "Success!", "file_name": f"clean_{file.filename}"} 
+
 @app.post("/api/remove-video-watermark")
 @limiter.limit("5/minute")
 async def process_video(
@@ -263,6 +264,7 @@ async def process_video(
     mode: str = Form("manual"), 
     user_id: str = Form(...) 
 ):
+    # 1. User Validation & Profile Synchronization
     user_data = db.get_or_create_user(user_id)
 
     if not user_data:
@@ -276,6 +278,7 @@ async def process_video(
         print(f"🚨 Blocked: User {user_id} is out of credits!")
         raise HTTPException(status_code=402, detail="PaywallTrigger: Daily limit reached. Upgrade to Pro.")
 
+    # 2. Disk Staging Setup
     input_filename = f"downloads/temp_vid_{file.filename}"
     output_filename = f"downloads/clean_vid_{file.filename}"
     
@@ -284,34 +287,49 @@ async def process_video(
 
     print(f"🎬 Incoming Frontend Request Mode: {mode.upper()}")
     
-    # ⚡ PRODUCTION ACCELERATOR: Set default engine speed to ultra-fast classical processing
+    # Both modes will share your amazing fast dominant color patcher engine!
     backend_execution_mode = "fast" 
     
+    # 🌟 ISOLATED AUTO MODE LOGIC CORE (Does not interfere with Manual mode parameters)
     if mode == "auto":
-        print("🤖 Handing video to EasyOCR to find the watermark...")
+        print("🤖 Handing video to EasyOCR to parse text layouts...")
         box = auto_detect.find_text_watermark(input_filename)
         
         if box:
-            x, y, w, h = box['x'], box['y'], box['w'], box['h']
-            print(f"🎯 AI Auto-Detected Text Coordinates -> x: {x}, y: {y}, w: {w}, h: {h}")
+            # Open video metadata stream to calculate strict layout boundaries
+            vid = cv2.VideoCapture(input_filename)
+            vid_w = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
+            vid_h = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            vid.release()
+
+            temp_x, temp_y = box['x'], box['y']
+            temp_w, temp_h = box['w'], box['h']
+            print(f"🎯 Raw AI Detection Coordinates -> x: {temp_x}, y: {temp_y}, w: {temp_w}, h: {temp_h} (Canvas Size: {vid_w}x{vid_h})")
             
-            # 🛡️ ANTI-HEADLINE SHIELD: If the detected box width is huge, it's a news banner, not a watermark logo!
-            if w > 450:
-                print("⚠️ AI grabbed a wide headline banner text instead of a logo. Rejecting false positive.")
+            # 🛡️ SHIELD 1: Headline Banner Detection (Rejects long horizontal bars)
+            if temp_w > (vid_w * 0.40) or temp_h > (vid_h * 0.30):
+                print("⚠️ Intercepted: AI detected a structural headline banner instead of a corner logo.")
                 try: os.remove(input_filename)
                 except: pass
-                return {"error": "AI Auto targeted the headline banner text. Please use Manual Select to circle the logo directly!"}
-                
-            # 🔥 SPEED OPTIMIZATION: We keep it on "fast" mode so the free CPU handles the erase instantly!
-            backend_execution_mode = "fast" 
-            print("🚀 Automated coordinates passed to lightning-fast extraction core.")
+                return {"error": "AI Auto targeted the large news headline banner. To keep the banner text intact, please use 'Manual' mode and circle just the corner logo directly!"}
+
+            # 🛡️ SHIELD 2: Central Video Content Guard (Rejects center subtitles/captions)
+            if (vid_h * 0.25) < temp_y < (vid_h * 0.75) and (vid_w * 0.20) < temp_x < (vid_w * 0.80):
+                print("⚠️ Intercepted: AI detected text within the primary central video tracking zone.")
+                try: os.remove(input_filename)
+                except: pass
+                return {"error": "AI Auto detected text elements in the center of the screen. Please switch to 'Manual' mode to specify your watermark area!"}
+
+            # If the coordinates pass both safety filters, assign them smoothly!
+            x, y, w, h = temp_x, temp_y, temp_w, temp_h
+            print(f"✅ Auto coordinates cleared security check: x={x}, y={y}, w={w}, h={h}")
         else:
-            print("❌ EasyOCR text array parsing returned empty values.")
+            print("❌ EasyOCR scan returned empty array fields.")
             try: os.remove(input_filename)
             except: pass
-            return {"error": "AI Auto could not find any explicit text logos here. Please use Manual Select."}
+            return {"error": "AI Auto could not detect any explicit text watermarks in the corners. Please use Manual Mode to draw your selection box."}
 
-    # Execute the video rendering
+    # 3. Core Engine Execution (Safe, flawless rendering path)
     success = main_video.remove_watermark_pro(
         input_path=input_filename, 
         output_path=output_filename, 
@@ -320,9 +338,10 @@ async def process_video(
     )
 
     if not success:
-        return {"error": "Video processing failed"}
+        return {"error": "Video processing execution encountered a system error."}
 
-    print("☁️ Uploading clean video to Cloudflare...")
+    # 4. Production Cloud Delivery & Cleanup
+    print("☁️ Uploading clean asset matrix to Cloudflare R2...")
     try:
         with open(output_filename, 'rb') as clean_file:
             s3.put_object(
@@ -331,16 +350,15 @@ async def process_video(
                 Body=clean_file
             )
     except Exception as e:
-        print(f"Cloudflare upload skipped (Local Mode): {e}")
+        print(f"Cloudflare infrastructure bypass (Local Fallback Triggered): {e}")
         
     try:
         os.remove(input_filename)
     except Exception as e:
-        print(f"Cleanup issue: {e}")
+        print(f"File retention warning: {e}")
 
     if not is_pro:
         db.deduct_credit(user_id)
-        print(f"💸 Credit deducted! Remaining: {credits_left - 1}")
         
     return {"message": "Success!", "file_name": f"clean_vid_{file.filename}"}
 
