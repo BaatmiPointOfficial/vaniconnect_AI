@@ -27,7 +27,6 @@ if not os.path.exists(MODEL_PATH):
 
 try:
     if os.path.exists(MODEL_PATH):
-        # ⚡ PRODUCTION STABILIZER: Restrict threads to prevent Hugging Face from killing the process
         opts = ort.SessionOptions()
         opts.intra_op_num_threads = 1
         opts.inter_op_num_threads = 1
@@ -43,11 +42,13 @@ except Exception as e:
     ort_session = None
 
 
-def remove_watermark_pro(input_path, output_path, x, y, w, h):
+def remove_watermark_pro(input_path, output_path, x, y, w, h, mode="fast"):
     """
-    High-quality Video Watermark Removal with dynamic key mapping and thread optimization.
+    Video Watermark Removal with dynamic mode selection:
+    - mode="ai": Premium LaMa AI pixel reconstruction (High-quality, slower)
+    - mode="fast": Classical OpenCV mathematical filling (Instant 2-5 sec processing)
     """
-    global ort_session  # 🌟 FIX: Explicitly reference the global AI session variable
+    global ort_session
     
     base_name = os.path.basename(input_path)
     normalized_input = f"normalized_{base_name}.mp4"
@@ -61,7 +62,7 @@ def remove_watermark_pro(input_path, output_path, x, y, w, h):
         ]
         subprocess.run(conversion_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         processing_source = normalized_input
-    except Exception as e:
+    except Exception:
         processing_source = input_path
 
     cap = cv2.VideoCapture(processing_source)
@@ -76,7 +77,7 @@ def remove_watermark_pro(input_path, output_path, x, y, w, h):
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(temp_output, fourcc, fps, (width, height))
 
-    # Calculate bounded crop area coordinates with safe margins
+    # Calculate crop coordinates for AI boundaries
     padding = 16
     x1 = max(0, int(x) - padding)
     y1 = max(0, int(y) - padding)
@@ -88,9 +89,8 @@ def remove_watermark_pro(input_path, output_path, x, y, w, h):
     if crop_w % 8 != 0: x2 = min(width, x2 + (8 - (crop_w % 8)))
     if crop_h % 8 != 0: y2 = min(height, y2 + (8 - (crop_h % 8)))
 
-    # Dynamically match internal model input keys to prevent segmentation faults
     img_key, mask_key = None, None
-    if ort_session is not None:
+    if ort_session is not None and mode == "ai":
         try:
             inputs = ort_session.get_inputs()
             for node in inputs:
@@ -98,8 +98,6 @@ def remove_watermark_pro(input_path, output_path, x, y, w, h):
                     mask_key = node.name
                 else:
                     img_key = node.name
-            if not img_key or not mask_key:
-                img_key, mask_key = inputs[0].name, inputs[1].name
         except Exception:
             ort_session = None
 
@@ -115,7 +113,8 @@ def remove_watermark_pro(input_path, output_path, x, y, w, h):
         mask = np.zeros(frame.shape[:2], dtype=np.uint8)
         cv2.rectangle(mask, (int(x), int(y)), (int(x + w), int(y + h)), 255, -1)
         
-        if ort_session is not None and (y2 > y1 and x2 > x1):
+        # 🌟 STRATEGY CORE: Choose execution path based on requested mode
+        if mode == "ai" and ort_session is not None and (y2 > y1 and x2 > x1):
             try:
                 crop_frame = frame[y1:y2, x1:x2]
                 crop_mask = mask[y1:y2, x1:x2]
@@ -123,7 +122,6 @@ def remove_watermark_pro(input_path, output_path, x, y, w, h):
 
                 crop_frame_resized = cv2.resize(crop_frame, (512, 512))
                 crop_mask_resized = cv2.resize(crop_mask, (512, 512))
-
                 crop_rgb = cv2.cvtColor(crop_frame_resized, cv2.COLOR_BGR2RGB)
                 
                 img_tensor = crop_rgb.astype(np.float32) / 255.0
@@ -133,23 +131,18 @@ def remove_watermark_pro(input_path, output_path, x, y, w, h):
                 mask_tensor = np.where(mask_tensor > 0, 1.0, 0.0).astype(np.float32)
                 mask_tensor = mask_tensor[np.newaxis, np.newaxis, ...]
 
-                # Execute mathematical inference safely via exact dictionary keys
-                ai_outputs = ort_session.run(None, {
-                    img_key: img_tensor,
-                    mask_key: mask_tensor
-                })
+                ai_outputs = ort_session.run(None, {img_key: img_tensor, mask_key: mask_tensor})
 
                 ai_output = ai_outputs[0][0]
                 ai_output = np.transpose(ai_output, (1, 2, 0))
                 ai_output = np.clip(ai_output * 255.0, 0, 255).astype(np.uint8)
                 clean_crop_bgr = cv2.cvtColor(ai_output, cv2.COLOR_RGB2BGR)
 
-                clean_crop_final = cv2.resize(clean_crop_bgr, (orig_w, orig_h))
-                frame[y1:y2, x1:x2] = clean_crop_final
-
+                frame[y1:y2, x1:x2] = cv2.resize(clean_crop_bgr, (orig_w, orig_h))
             except Exception:
                 frame = cv2.inpaint(frame, mask, 1, cv2.INPAINT_TELEA)
         else:
+            # ⚡ INSTANT FALLBACK: Run the lightning-fast classical algorithm
             frame = cv2.inpaint(frame, mask, 1, cv2.INPAINT_TELEA)
 
         out.write(frame)
@@ -174,12 +167,11 @@ def remove_watermark_pro(input_path, output_path, x, y, w, h):
             
         final_video.write_videofile(
             output_path, codec="libx264", audio_codec="aac", 
-            preset="ultrafast", threads=1, # Restrict encoding threads for container safety
+            preset="ultrafast", threads=1,
             ffmpeg_params=["-movflags", "+faststart"], logger=None
         )
         original_clip.close()
         processed_clip.close()
-        
     except Exception:
         try:
             conversion_command = [
@@ -190,7 +182,6 @@ def remove_watermark_pro(input_path, output_path, x, y, w, h):
             subprocess.run(conversion_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception:
             shutil.copy(temp_output, output_path)
-
     finally:
         if os.path.exists(temp_output): os.remove(temp_output)
         if os.path.exists(normalized_input): os.remove(normalized_input)
