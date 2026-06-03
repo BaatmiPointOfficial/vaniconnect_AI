@@ -251,7 +251,6 @@ async def process_photo(
         print(f"💸 Credit deducted! Remaining: {credits_left - 1}")
         
     return {"message": "Success!", "file_name": f"clean_{file.filename}"} 
-
 @app.post("/api/remove-video-watermark")
 @limiter.limit("5/minute")
 async def process_video(
@@ -285,7 +284,7 @@ async def process_video(
 
     print(f"🎬 Incoming Frontend Request Mode: {mode.upper()}")
     
-    # 🌟 BRIDGE THE MODE GAP: Default manual selections to lightning-fast classical mode
+    # ⚡ PRODUCTION ACCELERATOR: Set default engine speed to ultra-fast classical processing
     backend_execution_mode = "fast" 
     
     if mode == "auto":
@@ -303,15 +302,16 @@ async def process_video(
                 except: pass
                 return {"error": "AI Auto targeted the headline banner text. Please use Manual Select to circle the logo directly!"}
                 
-            backend_execution_mode = "ai" # Successfully handoff processing track to premium LaMa AI
-            print("🚀 Switched backend processing matrix to premium LaMa AI core.")
+            # 🔥 SPEED OPTIMIZATION: We keep it on "fast" mode so the free CPU handles the erase instantly!
+            backend_execution_mode = "fast" 
+            print("🚀 Automated coordinates passed to lightning-fast extraction core.")
         else:
             print("❌ EasyOCR text array parsing returned empty values.")
             try: os.remove(input_filename)
             except: pass
             return {"error": "AI Auto could not find any explicit text logos here. Please use Manual Select."}
 
-    # 🌟 FIX: Explicitly passing the backend_execution_mode parameter here!
+    # Execute the video rendering
     success = main_video.remove_watermark_pro(
         input_path=input_filename, 
         output_path=output_filename, 
@@ -343,6 +343,7 @@ async def process_video(
         print(f"💸 Credit deducted! Remaining: {credits_left - 1}")
         
     return {"message": "Success!", "file_name": f"clean_vid_{file.filename}"}
+
 @app.post("/api/remove-bg")
 @limiter.limit("5/minute")
 async def process_background(
